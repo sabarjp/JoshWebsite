@@ -2,21 +2,94 @@
 
 <html>
 <head>
-	<meta charset="utf-8" />
-	<title>Joshua Powers</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <link href='http://fonts.googleapis.com/css?family=Lato' rel='stylesheet' type='text/css'>
-	<link href="content/style.css" rel="stylesheet" type="text/css" />
-	
-	<!-- head scripts here*/ -->
+    <title>Joshua Powers</title>
+
+    <link href="content/style.css" rel="stylesheet" type="text/css" />
+    
+    <!-- head scripts here*/ -->
 </head>
 <body>
-	<div id="content">
-        <h2 id="name_title">Joshua Powers</h2>
-        <p>
-            My <a href="https://github.com/sabarjp">Github</a> page
-        </p>
-	</div>
-	<script type="text/javascript" src="scripts/index.js"></script>
+    <div id="content">
+        <nav>
+            <div>
+                <a href="index.htm">Home</a>
+            </div>
+            <div>
+                <a href="https://github.com/sabarjp">Github</a>
+            </div>
+            <div>
+                <a href="https://www.flickr.com/photos/16474390@N07/sets">Flickr</a>
+            </div>
+            <div>
+                Resume [<a href="content/docs/resume.pdf">PDF</a>, 
+                <a href="content/docs/resume.json">JSON</a>, 
+                <a href="resume.htm">Web</a>]
+            </div>
+            <!--
+            <div>
+                <a href="about.htm">About me</a>
+            </div>
+            <div>
+                <a href="books.htm">Favorite books</a>
+            </div>
+            -->
+        </nav>
+
+        <section>
+            <h2 id="name_title">Joshua Powers</h2>
+            <h4 id="name_sub_title">Programmer</h4>
+
+            <article>
+                <h3 class="main_link">
+                    Website
+                </h3>
+                <p class="main_link_description">
+                    This website is solely written, programmed, and designed by me, Joshua Powers.
+                    Third party services used include FontSquirrel, Google CDN, and jQuery. This
+                    website is hosted by <a href="https://asmallorange.com/">a small orange</a> on
+                    a cheap shared host.  A fantastic web host, highly recommended!
+                </p>
+            </article>
+
+			<article>
+                <h3 class="main_link">
+                    <a href="resume.htm">Resume</a>
+                </h3>
+                <p class="main_link_description">
+                    My resume is available here on the web site. I have a standard PDF version
+                    and a more interesting JSON version. I use some simple jQuery to convert the
+                    JSON resume into a web page version too! I wrote the JSON resume by hand, I 
+                    did not use any of the resume builders out there.
+                </p>
+            </article>
+
+            <article>
+                <h3 class="main_link">
+                    <a href="https://github.com/sabarjp">Github</a>
+                </h3>
+                <p class="main_link_description">
+                    My repositories for various personal projects that I have worked on
+                    recently. I have a small collection of Java, C#, web, and Python projects
+                    currently hosted.
+                </p>
+            </article>
+
+            <article>
+                <h3 class="main_link">
+                    <a href="https://www.flickr.com/photos/16474390@N07/sets">Flickr</a>
+                </h3>
+                <p class="main_link_description">
+                    I have some of my photography posted on Flickr. I have thousands more
+                    photos that I still have to filter through and post-process.
+                </p>
+            </article>
+
+
+        </section>
+    </div>
+    <script src="scripts/index.js"></script>
 </body>
 </html>
