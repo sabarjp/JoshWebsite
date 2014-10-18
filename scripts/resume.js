@@ -107,7 +107,7 @@ $(function() {
     }
 
     $.getJSON(
-        "content/docs/resume.json"
+        "/content/docs/resume.json"
     ).done(function(data){
         var validationResults = validateResumeJson(data)
 
