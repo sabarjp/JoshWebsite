@@ -1,0 +1,100 @@
+            using (var dbe = new StatisticsEntities())
+            {
+                var NuggetsByLocationAndBenchmark =
+                    dbe.BenchmarkFiles
+                        .Where(mf => mf.Active.Value
+                            &&
+mf.BenchmarkInfo.BenchmarkCategory.Category.ProductID == ProductId)
+                        .GroupBy(mf => new
+                        {
+                            mf.BenchmarkID,
+                            mf.PK
+                        })
+                        .Select(grp => new
+                        {
+                            Location = grp.Key.PK,
+                            BenchmarkId = grp.Key.BenchmarkID,
+                            NuggetCount = (grp
+                                .OrderByDescending(x => x.Period)
+                                .Select(x => x.AlertLevelID)
+                                .FirstOrDefault() >
+(int)EFileAlertLevel.None ? 1 : 0)
+                        })
+                        .Where(grp => grp.NuggetCount > 0)
+                        .Join(dbe.BenchmarkInfoes,
+                            left => left.BenchmarkId,
+                            right => right.BenchmarkID,
+                            (left, right) => new
+                            {
+                                left.Location,
+                                left.BenchmarkId,
+                                BenchmarkName = right.Name,
+                                left.NuggetCount,
+                            })
+                        .GroupBy(grp => new
+                        {
+                            grp.Location
+                        })
+                        .Select(grp2 => new
+                        {
+                            grp2.Key.Location,
+                            NuggetCount = grp2.Sum(x => x.NuggetCount),
+                            BenchmarkList = grp2.Select(x =>
+x.BenchmarkName).ToList()
+                        })
+                        .ToList();
+
+                var NuggetsByLocation =
+                    NuggetsByLocationAndBenchmark
+                        .GroupBy(i => i.Location)
+                        .Select(grp => new
+                        {
+                            Location = grp.Key,
+                            NuggetCount = grp.Sum(x => x.NuggetCount)
+                        })
+                        .ToList();
+
+                var NuggetsByLocationAndProduct =
+                    NuggetsByLocationAndBenchmark
+                        .Join(dbe.BenchmarkCategories,
+                            left => left.BenchmarkId,
+                            right => right.BenchmarkID,
+                            (left, right) => new
+                            {
+                                ProductId =
+right.Category.ProductID,
+                                Location = left.Location,
+                                NuggetCount = left.NuggetCount
+                            })
+                        .GroupBy(x => new
+                        {
+                            x.ProductId,
+                            x.Location
+                        })
+                        .Select(grp => new
+                        {
+                            ProductId = grp.Key.ProductId,
+                            Location = grp.Key.Location,
+                            NuggetCount = grp.Sum(x => x.NuggetCount)
+                        })
+                        .ToList();
+
+                var NuggetsByProduct =
+                    NuggetsByLocationAndProduct
+                        .GroupBy(i => i.ProductId)
+                        .Select(grp => new
+                        {
+                            ProductId = grp.Key,
+                            NuggetCount = grp.Sum(x => x.NuggetCount)
+                        })
+
+
+                return new JsonNetResult
+                {
+                    Data = new
+                    {
+                        NuggetsByLocationAndBenchmark
+                    },
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet
+                };
+            }

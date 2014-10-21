@@ -1,0 +1,49 @@
+ALTER PROCEDURE [dbo].[usp_rptHIVRatesMaleByAgeYear]
+        @Period DATETIME2,
+        @PK varchar(10)
+AS
+BEGIN
+        SET NOCOUNT ON;
+
+        DECLARE @Location VARCHAR(10) = @PK
+        DECLARE @LocationName VARCHAR(50) = 'Unknown'
+        DECLARE @Year DATETIME2
+
+        SELECT @Year = DATEADD(yy, DATEDIFF(yy, 0, @Period), 0)
+
+        IF UPPER(@Location) IN ('WArea', 'SArea', 'NArea', 'EArea', 'PArea') BEGIN
+            SET @LocationName = UPPER(@Location)
+        END ELSE BEGIN
+            SELECT TOP 1 @LocationName = CampusName
+            FROM dbo.CampusLookup
+            WHERE CampusID = UPPER(@Location)
+        END
+
+    SELECT @LocationName AS LocationName,
+           CASE WHEN GROUPING(s.AgeCategory) = 1 THEN 'Total' ELSE
+s.AgeCategory END AS AgeCategory,
+           s.Period,
+           CASE WHEN SUM(a.AdjustedPersonTimeTotal) = 0 THEN 0.0 ELSE
+               SUM(s.HIVCount) / SUM(a.AdjustedPersonTimeTotal) *
+100000.0
+           END AS HIVRatePerThousandPersonYears,
+           SUM(s.HIVCount) AS HIVCount
+    FROM dbo.StiCount s
+    INNER JOIN dbo.CampusLookup i
+        ON s.PK = i.CampusID
+    INNER JOIN dbo.Demographics a
+        ON a.PK = s.PK
+        AND a.Period = s.Period
+        AND a.AgeCategory = s.AgeCategory
+        AND a.Gender = s.Gender
+    WHERE s.Period > DATEADD(year, -7, @Year)
+        AND s.Period <= @Year
+        AND (UPPER(s.PK) = UPPER(@Location)
+             OR UPPER(i.AreaName) = UPPER(@Location)
+             OR UPPER(@Location) = 'ARMY')
+        AND s.Gender = 'Male'
+    GROUP BY GROUPING SETS((s.AgeCategory, s.Period), (s.Period))
+
+    --test
+    --exec PH360.dbo.usp_rptHIVRatesMaleByAgeYear '2013', 'ARMY'
+END

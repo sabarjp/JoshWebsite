@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		
+		<style type="text/css">
+			/* fonts downloaded from GoogleFonts */
+			@font-face {
+			  font-family: 'Open Sans';
+			  font-style: normal;
+			  font-weight: 400;
+			  src: local('Open Sans'), local('OpenSans'), url('fonts/opensans.woff') format('woff');
+			}
+
+			@font-face {
+			  font-family: 'Lato';
+			  font-style: normal;
+			  font-weight: 400;
+			  src: local('Lato Regular'), local('Lato-Regular'), url('fonts/Lato-Regular.woff') format('woff');
+			}
+
+			@font-face {
+			  font-family: 'Open Sans Condensed';
+			  font-style: normal;
+			  font-weight: 300;
+			  src: local('Open Sans Cond Light'), local('OpenSans-CondensedLight'), url('fonts/Open-Sans-Cond-Light.woff') format('woff');
+			}
+
+			@font-face {
+			  font-family: 'Roboto';
+			  font-style: normal;
+			  font-weight: 400;
+			  src: local('Roboto Regular'), local('Roboto-Regular'), url('fonts/Roboto-Regular.woff') format('woff');
+			}
+
+			@font-face {
+			  font-family: 'Ubuntu';
+			  font-style: normal;
+			  font-weight: 400;
+			  src: local('Ubuntu'), url('fonts/Ubuntu.woff') format('woff');
+			}
+
+			.arial
+			{
+				font-family: Arial, sans-serif;
+			}
+
+			.opensans
+			{
+				font-family: 'Open Sans', Arial, sans-serif;
+			}
+
+			.lato
+			{
+				font-family: 'Lato', Arial, sans-serif;
+			}
+
+			.opensanscondensed
+			{
+				font-family: 'Open Sans Condensed', Arial, sans-serif;
+			}
+
+			.roboto
+			{
+				font-family: 'Roboto', Arial, sans-serif;
+			}
+
+			.ubuntu
+			{
+				font-family: 'Ubuntu', Arial, sans-serif;
+			}
+
+			section
+			{
+				max-width: 600px;
+				padding: 20px;
+			}
+
+			div.code
+			{
+				font-family: Courier;
+				font-size: 0.8em;
+				white-space: pre-wrap;
+
+				background-color:black;
+				color: white;
+
+				max-width: 800px;
+				padding: 20px;
+			}
+		</style>
+	</head>
+
+	<body>
+	<h1>CSS3 Custom Font Examples</h1>
+	<h2>Supported in IE9+, FireFox, Chrome, Safari, Opera, and mobile</h2>
+	<p>Feel free to view the source to see the CSS</p>
+
+		<section>
+			<h2 class="arial">This is a heading in <i>Arial</i></h2>
+			<p class="arial">This is a paragraph in <i>Arial</i></p>
+			<p class="arial">This font is not designed for the web, but for publishing on paper.  
+			It is a clone of Helvetica with some small changes.</p>
+		</section>
+
+		<section>
+			<h2 class="opensans">This is a heading in <i>Open Sans</i> using CSS3</h2>
+			<p class="opensans">This is a paragraph in <i>Open Sans</i> using CSS3</p>
+			<p class="opensans">This font is designed for display on a computer.  This font was 
+			comissioned by Google for free use.  According to Wikipedia: it was developed with an 
+			"upright stress, open forms and a neutral, yet friendly appearance" and is "optimized 
+			for legibility across print, web, and mobile interfaces."</p>
+		</section>
+
+		<div class="code">
+@font-face {
+   font-family: 'Open Sans';
+   font-style: normal;
+   font-weight: 400;
+   src: local('Open Sans'), local('OpenSans'), url('fonts/opensans.woff') format('woff');
+}
+
+p
+{
+   font-family: 'Open Sans', Arial, sans-serif;
+}
+		</div>
+
+		<section>
+			<h2 class="lato">This is a heading in <i>Lato</i> using CSS3</h2>
+			<p class="lato">This is a paragraph in <i>Lato</i> using CSS3</p>
+			<p class="lato">This font is designed for display on a computer.  According to Wikipedia: 
+			The typeface used classical proportions to give the letterforms familiar harmony and 
+			elegance.</p>
+		</section>
+
+		<div class="code">
+@font-face {
+   font-family: 'Lato';
+   font-style: normal;
+   font-weight: 400;
+   src: local('Lato Regular'), local('Lato-Regular'), url('fonts/Lato-Regular.woff') format('woff');
+}
+
+p
+{
+   font-family: 'Lato', Arial, sans-serif;
+}
+		</div>
+
+		<section>
+			<h2 class="opensanscondensed">This is a heading in <i>Open Sans Condensed</i> using CSS3</h2>
+			<p class="opensanscondensed">This is a paragraph in <i>Open Sans Condensed</i> using CSS3</p>
+			<p class="opensanscondensed">This font is designed for display on a computer.  This is a 
+			condensed version of Open Sans.</p>
+		</section>
+
+		<div class="code">
+@font-face {
+   font-family: 'Open Sans Condensed';
+   font-style: normal;
+   font-weight: 300;
+   src: local('Open Sans Cond Light'), local('OpenSans-CondensedLight'), url('fonts/Open-Sans-Cond-Light.woff') format('woff');
+}
+
+p
+{
+   font-family: 'Open Sans Condensed', Arial, sans-serif;
+}
+		</div>
+
+		<section>
+			<h2 class="roboto">This is a heading in <i>Roboto</i> using CSS3</h2>
+			<p class="roboto">This is a paragraph in <i>Roboto</i> using CSS3</p>
+			<p class="roboto">This font is designed for display on a computer.  It was designed by 
+			Google specifically for use in the Android operating system.  It is optimzed for computer 
+			and mobile devices and is a response to Apple's usage of Helvetica Neue.</p>
+		</section>
+
+		<div class="code">
+@font-face {
+   font-family: 'Roboto';
+   font-style: normal;
+   font-weight: 400;
+   src: local('Roboto Regular'), local('Roboto-Regular'), url('fonts/Roboto-Regular.woff') format('woff');
+}
+
+p
+{
+   font-family: 'Roboto', Arial, sans-serif;
+}
+		</div>
+
+		<section>
+			<h2 class="ubuntu">This is a heading in <i>Ubuntu</i> using CSS3</h2>
+			<p class="ubuntu">This is a paragraph in <i>Ubuntu</i> using CSS3</p>
+			<p class="ubuntu">This font is designed for display on a computer.  It is a humanist font 
+			that was designed for the Ubuntu linux operating system.</p>
+		</section>
+
+		<div class="code">
+@font-face {
+   font-family: 'Ubuntu';
+   font-style: normal;
+   font-weight: 400;
+   src: local('Ubuntu'), url('fonts/Ubuntu.woff') format('woff');
+}
+
+p
+{
+   font-family: 'Ubuntu', Arial, sans-serif;
+}
+		</div>
+	</body>
+</html>
