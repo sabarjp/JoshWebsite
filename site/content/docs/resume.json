@@ -5,12 +5,13 @@
         "emailAddress": "jsh.a.powers@gmail.com",
         "phoneNumber": "210-355-6730",
         "address": {
-            "addressLine1": "1200 Avenue B Apt 541",
+            "addressLine1": "",
             "addressLine2": "",
             "city": "San Antonio",
             "state": "TX",
-            "zipcode": "78215"
+            "zipcode": ""
         },
+        "website": "http://joshpowers.io",
         "currentlyEmployed": true
     },
 

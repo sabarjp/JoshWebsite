@@ -163,6 +163,16 @@ p{
     margin-left: 1em;
 }
 
+/********** PORTFOLIO *****************************/
+
+.portfolio_section_title{
+    font-size: 2em;
+}
+
+.portfolio_article_description{
+    margin-left: 1em;
+}
+
 /********** WEB RESUME *****************************/
 
 #resume_reserve p,
