@@ -1,0 +1,723 @@
+
+        //
+        // POST: /Admin/BitmapDraw
+        [HttpPost]
+        [NoCache]
+        public ActionResult BitmapDraw(BitmapDrawCriteria criteria)
+        {
+            var model = new AdminBitmapDrawVM();
+
+            /* Build the model depending on the selected criteria */
+            using (var dbe = new PipelineEntities())
+            {
+                model.pipes = dbe.pipes
+                    .Where(p => p.Active.Value && p.AllowBitmapDraw)
+                    .OrderBy(p => p.Name)
+                    .ToList();
+
+                if (criteria.SelectedLocation != string.Empty)
+                {
+                    model.SelectedLocation = criteria.SelectedLocation;
+                }
+
+                if (criteria.SelectedProductID.HasValue)
+                {
+                    model.SelectedpipeId =
+criteria.SelectedProductID;
+                    model.Selectedpipe =
+model.pipes.SingleOrDefault(p => p.pipeID ==
+model.SelectedpipeId);
+
+                    if (model.Selectedpipe != null &&
+model.Selectedpipe.AllowBitmapDraw)
+                    {
+
+                        model.MeasurementInfoes = dbe.Categories
+                            .Include(c => c.MeasurementCategories)
+                            .Where(c => c.Active.Value)
+                            .Where(c => c.pipeID ==
+model.SelectedpipeId)
+                                .SelectMany(c => c.MeasurementCategories)
+                                .Include(mc => mc.MeasurementInfo)
+                                .Select(mc => mc.MeasurementInfo)
+                                .Where(mi => mi.AllowBitmapDraw)
+                                .Include(mi => mi.DataUploads)
+                                .OrderBy(mi => mi.Name)
+                                .ToList();
+
+                        model.PKList = dbe.PKInfoes
+                            .Join(dbe.pipePK,
+                                l => l.PK,
+                                r => r.PK,
+                                (l, r) => new
+                                {
+                                    PKInfo = l,
+                                    plmap = r
+                                }
+                            )
+                            .Where(r => r.plmap.pipeID ==
+criteria.SelectedProductID.Value
+                                && r.PKInfo.FacilityLevelID ==
+(int)EFacilityLevel.Parent)
+                            .Select(r => r.PKInfo)
+                            .ToList();
+
+                        // filter off restrictions
+                        var restrictedMeasurements =
+SharedOrchestrator.GetMeasurementsUserCanAdmin(MvcApplication.CurrentUserName);
+
+                        model.MeasurementInfoes = model.MeasurementInfoes
+                            .Where(mi => restrictedMeasurements.Any(r =>
+r.MeasurementID == mi.MeasurementID))
+                            .ToList();
+
+                        model.Facilities = dbe.PKInfoes
+                            .Where(d => dbe.pipePK
+                                .Where(p => p.pipeID ==
+model.SelectedpipeId)
+                                .Select(p => p.PK)
+                                .Contains(d.FacilityID))
+                            .OrderBy(d => d.FacilityLevelID).ThenBy(d =>
+d.FacilityID)
+                            .ToList();
+                    }
+                }
+
+                if (criteria.SelectedMeasurementID.HasValue)
+                {
+                    model.SelectedMeasurementInfoId = criteria.SelectedMeasurementID;
+
+                    if
+(SharedOrchestrator.CanMeasurementBeBitmapDrawed(model.SelectedMeasurementInfoId.Value))
+                    {
+                        model.SelectedMeasurementInfo =
+model.MeasurementInfoes.Where(mi => mi.MeasurementID ==
+model.SelectedMeasurementInfoId).SingleOrDefault();
+                    }
+                }
+
+                if (criteria.SelectedPeriod.HasValue)
+                {
+                    model.SelectedPeriod = criteria.SelectedPeriod.Value;
+                }
+            }
+
+            return View(model);
+        }
+
+        //
+        // AJAX POST: /Admin/BitmapDrawAjax
+        [HttpPost]
+        [NoCache]
+        public ActionResult BitmapDrawAjax(BitmapDrawCriteria criteria)
+        {
+            var xreq = Request.Headers["X-Requested-With"];
+            var contentType = (xreq == "XMLHttpRequest" ? "application/json"
+: "text/html");
+
+            #region Validation and Authorization
+            // Make sure form is filled before proceeding!
+            if (!ModelState.IsValid)
+            {
+                return new JsonNetResult
+                {
+                    Data = new
+                    {
+                        success = false,
+                        messages = ModelState
+                            .Where(x => x.Value.Errors.Count > 0)
+                            .Select(x => new { x.Key, x.Value }).ToList()
+                    },
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet,
+                    ContentType = contentType
+                };
+            }
+
+            if (criteria.SelectedMeasurementID != null &&
+
+!SharedOrchestrator.IsUserAuthorizedToAdminMeasurement(MvcApplication.CurrentUser
+Name, criteria.SelectedMeasurementID.Value))
+            {
+                return new JsonNetResult
+                {
+                    Data = new
+                    {
+                        success = false,
+                        messages = new { Key = "Authorization", Value =
+"Permission denied, not allowed to edit this Measurement"}
+                    },
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet,
+                    ContentType = contentType
+                };
+            }
+
+            if (criteria.SelectedMeasurementID != null &&
+
+!SharedOrchestrator.CanMeasurementBeBitmapDrawed(criteria.SelectedMeasurementID.Value))
+            {
+                return new JsonNetResult
+                {
+                    Data = new
+                    {
+                        success = false,
+                        messages = new { Key = "Authorization", Value =
+"Permission denied, not allowed to BitmapDraw this Measurement" }
+                    },
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet,
+                    ContentType = contentType
+                };
+            }
+            #endregion
+
+            #region Set up
+            // All the facilities that we want to BitmapDraw
+            List<PKInfo> facilitiesToBitmapDraw;
+
+            // The Measurement info that has data on how to BitmapDraw
+            MeasurementInfo selectedMeasurementInfo;
+
+            using (var dbe = new PipelineEntities())
+            {
+                var PKInfoes = dbe.PKInfoes
+                    .Where(d => dbe.pipePK
+                        .Where(p => p.pipeID ==
+criteria.SelectedProductID)
+                        .Select(p => p.PK)
+                        .Contains(d.FacilityID)
+                            && (d.FacilityID == criteria.SelectedLocation ||
+criteria.SelectedLocation == "ALL"))
+                    .ToList();
+
+                if(criteria.SelectedSortOrder == "FacilityName"){
+                    facilitiesToBitmapDraw = PKInfoes
+                        .OrderBy(d => d.FacilityLevelID).ThenBy(d =>
+d.CampusName)
+                        .ToList();
+                } else {
+                    facilitiesToBitmapDraw = PKInfoes
+                        .OrderBy(d => d.FacilityLevelID).ThenBy(d => d.PK)
+                        .ToList();
+                }
+
+                selectedMeasurementInfo = dbe.MeasurementInfoes
+                    .SingleOrDefault(mi => mi.MeasurementID ==
+criteria.SelectedMeasurementID);
+            }
+
+            // The facility list for when a facility must be picked by the
+yser
+            var nothingSelected = new List<PKInfo>
+            {
+                new PKInfo {PK = "0000", FacilityID = "0000",
+CampusName = "Please select a facility"}
+            };
+
+            var facilities = nothingSelected
+                .Concat(facilitiesToBitmapDraw)
+                .ToList()
+                .Select(f => new
+                {
+                    facilityId = f.FacilityID,
+                    CampusName = f.CampusName
+                })
+                .ToList();
+            #endregion
+
+            #region Data import
+
+            var errorMessages = new List<string>();
+
+            // Import user-supplied data if file was supplied
+            if (selectedMeasurementInfo != null &&
+                (selectedMeasurementInfo.Automated.HasValue &&
+selectedMeasurementInfo.Automated.Value &&
+                    selectedMeasurementInfo.DataUpload.HasValue &&
+selectedMeasurementInfo.DataUpload.Value &&
+                    criteria.UploadFile != null && criteria.UploadFile.Count
+> 0))
+            {
+                for (var i = 0; i < criteria.UploadFile.Count(); i++)
+                {
+                    if (criteria.UploadFile[i] == null) continue;
+
+                    var valid = UploadProcessor.ImportData(
+                        criteria.UploadProcedureId[i],
+                        criteria.UploadFile[i],
+                        errorMessages
+                        );
+
+                    // Abort now if the supplied data is bad
+                    if (!valid)
+                    {
+                        foreach (var e in errorMessages)
+                        {
+                            ModelState.AddModelError("UploadFile[" + i +
+"]", e);
+                        }
+
+                        return new JsonNetResult
+                        {
+                            Data = new
+                            {
+                                success = false,
+                                messages = ModelState
+                                    .Where(x => x.Value.Errors.Count > 0)
+                                    .Select(x => new { x.Key, x.Value
+}).ToList()
+                            },
+                            JsonRequestBehavior =
+JsonRequestBehavior.DenyGet,
+                            ContentType = contentType
+                        };
+                    }
+                }
+            }
+            #endregion
+
+            #region Task run
+            // Prepare the task
+            var taskId = Guid.NewGuid().ToString();
+            var userName = MvcApplication.CurrentUserName;
+            string appEventDetail;
+
+
+            // Clean up old tasks
+            foreach(var key in Tasks.Keys.ToArray()){
+                if(UploadProcessor.TimeAccessed.ContainsKey(key) &&
+UploadProcessor.TimeAccessed[key].AddMinutes(1).CompareTo(DateTime.Now) <
+0){
+                    RemoveTaskFromMemory(key);
+                }
+            }
+
+            // Run task
+            if (selectedMeasurementInfo != null &&
+selectedMeasurementInfo.Automated.HasValue && selectedMeasurementInfo.Automated.Value)
+            {
+                // Automated slides
+                appEventDetail = String.Format("Attempt BitmapDraw slides for
+Measurement: {0} | PK: {1} | Period: {2}",
+                    selectedMeasurementInfo.Name, criteria.SelectedLocation,
+criteria.SelectedPeriod.Value.ToShortDateString());
+
+                MvcApplication.LogAudit(AuditEventType.UserAction,
+PipelineEvents.BitmapDrawFile, appEventDetail,
+criteria.SelectedMeasurementID.Value.ToString());
+
+                UploadProcessor.Progress[taskId] = 0;
+                UploadProcessor.TimeAccessed[taskId] = DateTime.Now;
+
+                Tasks[taskId] = Task.Factory.StartNew<List<MeasurementFile>>(()
+=>
+
+UploadProcessor.CreateAutomatedSlides(selectedMeasurementInfo,
+criteria.SelectedPeriod.Value, facilitiesToBitmapDraw, userName, taskId)
+                );
+            }
+            else if (criteria.MultiSite)
+            {
+                if (criteria.UploadFile != null && criteria.UploadFile.Count
+== 1)
+                {
+                    // Manual slides, multiple facility upload (zip file)
+                    appEventDetail = String.Format("Attempt upload slide for
+Measurement: {0} | Period: {1} | FileName: {2}",
+                        selectedMeasurementInfo.Name,
+criteria.SelectedPeriod.Value.ToShortDateString(),
+criteria.UploadFile[0].FileName);
+
+                    MvcApplication.LogAudit(AuditEventType.UserAction,
+PipelineEvents.BitmapDrawFile, appEventDetail,
+criteria.SelectedMeasurementID.Value.ToString());
+
+                    var memoryStream = new MemoryStream();
+                    criteria.UploadFile[0].InputStream.CopyTo(memoryStream);
+
+                    UploadProcessor.Progress[taskId] = 0;
+                    UploadProcessor.TimeAccessed[taskId] = DateTime.Now;
+
+                    Tasks[taskId] =
+Task.Factory.StartNew<List<MeasurementFile>>(() =>
+
+UploadProcessor.UploadMultipleSlides(selectedMeasurementInfo,
+criteria.SelectedPeriod.Value, memoryStream, userName, taskId)
+                    );
+                }
+                else
+                {
+                    //this shouldn't happen
+                    return new JsonNetResult
+                    {
+                        Data = new
+                        {
+                            success = false
+                        },
+                        JsonRequestBehavior = JsonRequestBehavior.AllowGet,
+                        ContentType = contentType
+                    };
+                }
+            }
+            else
+            {
+                if (criteria.UploadFile != null && criteria.UploadFile.Count
+== 1)
+                {
+                    // Manual slide, single facility upload (single image)
+                    appEventDetail = String.Format("Uploaded Slide for
+Measurement: {0} | Period: {1} | PK: {2} | FileName: {3}",
+                        selectedMeasurementInfo.Name,
+criteria.SelectedPeriod.Value.ToShortDateString(),
+criteria.SelectedLocation, criteria.UploadFile[0].FileName);
+
+                    MvcApplication.LogAudit(AuditEventType.UserAction,
+PipelineEvents.BitmapDrawFile, appEventDetail,
+criteria.SelectedMeasurementID.Value.ToString());
+
+                    var memoryStream = new MemoryStream();
+                    criteria.UploadFile[0].InputStream.CopyTo(memoryStream);
+
+                    UploadProcessor.Progress[taskId] = 0;
+                    UploadProcessor.TimeAccessed[taskId] = DateTime.Now;
+
+                    Tasks[taskId] =
+Task.Factory.StartNew<List<MeasurementFile>>(() =>
+
+UploadProcessor.UploadSingleSlide(selectedMeasurementInfo,
+criteria.SelectedPeriod.Value, facilitiesToBitmapDraw.FirstOrDefault(),
+criteria.UploadFile[0].FileName, memoryStream, userName, taskId)
+                    );
+                }
+                else
+                {
+                    //this shouldn't happen
+                    return new JsonNetResult
+                    {
+                        Data = new
+                        {
+                            success = false
+                        },
+                        JsonRequestBehavior = JsonRequestBehavior.AllowGet,
+                        ContentType = contentType
+                    };
+                }
+            }
+            #endregion
+
+            return new JsonNetResult
+            {
+                Data = new
+                {
+                    success = true, facilities, taskId
+                },
+                JsonRequestBehavior = JsonRequestBehavior.AllowGet,
+                ContentType = contentType
+            };
+        }
+
+        //
+        // AJAX POST: /Admin/SaveSlides
+        [HttpPost]
+        [NoCache]
+        public JsonNetResult SaveSlides(List<BitmapDrawSaveInsight> Slides)
+        {
+            using (var dbe = new PipelineEntities())
+            {
+                if (Slides == null)
+                {
+                    return new JsonNetResult
+                    {
+                        Data = new {success = true},
+                        JsonRequestBehavior = JsonRequestBehavior.AllowGet
+                    };
+                }
+
+                // Validate
+                ValidateConfirm(Slides);
+
+                if (!ModelState.IsValid)
+                {
+                    return new JsonNetResult { Data = new {
+                        success = false,
+                        messages = ModelState
+                            .Where(x => x.Value.Errors.Count > 0)
+                            .Select(x => new { x.Key, x.Value }).ToList()
+                    }, JsonRequestBehavior = JsonRequestBehavior.AllowGet };
+                }
+
+                // Check each slide and load the data in
+                foreach (var slide in Slides)
+                {
+                    var MeasurementFile = dbe.MeasurementFiles.SingleOrDefault(mf =>
+mf.MeasurementFileID == slide.MeasurementFileId);
+
+                    if (MeasurementFile != null)
+                    {
+                        // Check permissions
+                        if
+(!SharedOrchestrator.IsUserAuthorizedToAdminMeasurement(MvcApplication.CurrentUse
+rName, MeasurementFile.MeasurementID))
+                        {
+                            ModelState.AddModelError("Authorization", "You
+do not have permission to edit this Measurement");
+
+                            return new JsonNetResult
+                            {
+                                Data = new
+                                {
+                                    success = false,
+                                    messages = ModelState
+                                        .Where(x => x.Value.Errors.Count >
+0)
+                                        .Select(x => new { x.Key, x.Value
+}).ToList()
+                                },
+                                JsonRequestBehavior =
+JsonRequestBehavior.AllowGet
+                            };
+                        }
+
+                        // Make sure BitmapDrawing is allowed
+                        if
+(!SharedOrchestrator.CanMeasurementBeBitmapDrawed(MeasurementFile.MeasurementID))
+                        {
+                            ModelState.AddModelError("Authorization", "You
+do not have permission to BitmapDraw this Measurement");
+
+                            return new JsonNetResult
+                            {
+                                Data = new
+                                {
+                                    success = false,
+                                    messages = ModelState
+                                        .Where(x => x.Value.Errors.Count >
+0)
+                                        .Select(x => new { x.Key, x.Value
+}).ToList()
+                                },
+                                JsonRequestBehavior =
+JsonRequestBehavior.AllowGet
+                            };
+                        }
+
+                        if (slide.IsDeletingSlide)
+                        {
+                            foreach (var fileData in
+MeasurementFile.FileDatas.ToList())
+                            {
+                                dbe.Entry(fileData).State =
+EntityState.Deleted;
+                                dbe.SaveChanges();
+                            }
+
+                            dbe.Entry(MeasurementFile).State =
+EntityState.Deleted;
+                            dbe.SaveChanges();
+                        }
+                        else
+                        {
+                            if (slide.Insight == null)
+                            {
+                                MeasurementFile.AlertLevelID =
+(int)EFileAlertLevel.None;
+                            }
+                            else
+                            {
+                                MeasurementFile.AlertLevelID =
+(int)EFileAlertLevel.Normal;
+                            }
+
+                            // Save the location if the PK of this slide
+is specified
+                            if (!string.IsNullOrEmpty(slide.Location))
+                            {
+                                MeasurementFile.PK = slide.Location;
+                            }
+
+                            MeasurementFile.Active = true;
+                            MeasurementFile.Note = slide.Insight;
+                            MeasurementFile.Observation = slide.Comments;
+
+                            dbe.Entry(MeasurementFile).State =
+EntityState.Modified;
+                            dbe.SaveChanges();
+
+                            // Delete similar Measurement files for the same
+PK/period/Measurement
+                            var similarMeasurementFiles = dbe.MeasurementFiles
+                                .Where(mf => mf.MeasurementID ==
+MeasurementFile.MeasurementID
+                                             && mf.Period ==
+MeasurementFile.Period
+                                             && mf.PK == MeasurementFile.PK
+                                             && mf.MeasurementFileID !=
+MeasurementFile.MeasurementFileID)
+                                .ToList();
+
+                            if (similarMeasurementFiles.Count > 0)
+                            {
+                                foreach (var m in similarMeasurementFiles)
+                                {
+                                    if (m.FileDatas != null &&
+m.FileDatas.Count > 0)
+                                    {
+                                        foreach (var f in
+m.FileDatas.ToList())
+                                        {
+                                            dbe.Entry(f).State =
+EntityState.Deleted;
+                                            dbe.SaveChanges();
+                                        }
+                                    }
+
+                                    dbe.Entry(m).State =
+EntityState.Deleted;
+                                    dbe.SaveChanges();
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        //somehow the Measurement is missing
+                        ModelState.AddModelError("Error", "The Measurement file
+is missing, please contact your system administrator");
+
+                        return new JsonNetResult
+                        {
+                            Data = new
+                            {
+                                success = false,
+                                messages = ModelState
+                                    .Where(x => x.Value.Errors.Count > 0)
+                                    .Select(x => new { x.Key, x.Value
+}).ToList()
+                            },
+                            JsonRequestBehavior =
+JsonRequestBehavior.AllowGet
+                        };
+                    }
+
+                    MvcApplication.LogAudit(AuditEventType.UserAction,
+PipelineEvents.BitmapDrawFile, "Saved insights",
+MeasurementFile.MeasurementFileID.ToString());
+                }
+            }
+
+            return new JsonNetResult { Data = new { success = true },
+JsonRequestBehavior = JsonRequestBehavior.AllowGet };
+        }
+
+        //
+        // AJAX GET: /Admin/GetBitmapDrawStatus
+        [NoCache]
+        public JsonNetResult GetBitmapDrawStatus(string id)
+        {
+            if(UploadProcessor.TimeAccessed.ContainsKey(id)){
+                UploadProcessor.TimeAccessed[id] = DateTime.Now;
+            }
+
+            int progress;
+
+            if (!UploadProcessor.Progress.ContainsKey(id))
+            {
+                progress = -1;
+            }
+            else
+            {
+                progress = Math.Max(5, UploadProcessor.Progress[id]);
+            }
+
+            if (!Tasks.ContainsKey(id))
+            {
+                return new JsonNetResult
+                {
+                    Data = new { exists = false, finished = false, errored =
+false, progress },
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet
+                };
+            }
+
+            if (Tasks[id].IsFaulted)
+            {
+                //save error message
+                Exception ex = Tasks[id].Exception;
+                var error = Tasks[id].Exception.Message;
+
+                // remove links to free memory since this task will not be
+accessed again
+                RemoveTaskFromMemory(id);
+
+                MvcApplication.RecordPipelineErrorLog(ex,
+System.Web.HttpContext.Current.Request);
+
+                return new JsonNetResult
+                {
+                    Data = new { exists = true, finished = true, errored =
+true, progress, errorMessage = error },
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet
+                };
+            }
+
+            if (Tasks[id].IsCanceled)
+            {
+                // remove links to free memory since this task will not be
+accessed again
+                RemoveTaskFromMemory(id);
+
+                return new JsonNetResult
+                {
+                    Data = new { exists = true, finished = true, errored =
+true, progress, errorMessage = "BitmapDrawing task was canceled on the server"
+},
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet
+                };
+            }
+
+            if (Tasks[id].IsCompleted)
+            {
+                return new JsonNetResult
+                {
+                    Data = new { exists = true, finished = true, errored =
+false, progress },
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet
+                };
+            }
+
+            return new JsonNetResult
+            {
+                Data = new { exists = true, finished = false, errored =
+false, progress },
+                JsonRequestBehavior = JsonRequestBehavior.AllowGet
+            };
+        }
+
+        //
+        // AJAX GET: /Admin/FinishBitmapDraw
+        [NoCache]
+        public JsonNetResult FinishBitmapDraw(string id)
+        {
+            if (!Tasks.ContainsKey(id))
+            {
+                return new JsonNetResult
+                {
+                    Data = new { success = true },
+                    JsonRequestBehavior = JsonRequestBehavior.AllowGet
+                };
+            }
+
+            if (!Tasks[id].IsCompleted)
+            {
+                Task.WaitAll(Tasks[id]);
+            }
+
+            var generatedFiles = Tasks[id].Result;
+
+            // remove links to old stuff to free memory
+            RemoveTaskFromMemory(id);
+
+            return new JsonNetResult
+            {
+                Data = new { success = true, MeasurementFiles = generatedFiles },
+                JsonRequestBehavior = JsonRequestBehavior.AllowGet
+            };
+        }

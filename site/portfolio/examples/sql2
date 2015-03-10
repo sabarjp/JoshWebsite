@@ -1,0 +1,208 @@
+ALTER PROCEDURE [dbo].[usp_rptViralRate]
+        @Location VARCHAR(20),
+        @PullDate VARCHAR(8),
+        @IsArea BIT
+AS
+BEGIN
+        SET NOCOUNT ON;
+
+        -- Get the statistical weights ready for use.
+        -- The weights depend on all our filters.
+        SELECT T.AssignmentDate
+              ,T.ParentPK
+              ,T.Phase
+              ,T.WithVirus
+              ,T.NoWithVirus
+              ,ISNULL(w.WithVirusEligible, 0) AS WithVirusEligible
+              ,ISNULL(w.NoWithVirusEligible, 0) AS NoWithVirusEligible
+              ,ISNULL(CASE WHEN T.WithVirus > 0 THEN CAST(w.WithVirusEligible AS
+DECIMAL(20,10))
+                    / CAST(T.WithVirus AS DECIMAL(20,10)) ELSE 1.0 END, 1.0) AS
+WithVirusWeight
+              ,ISNULL(CASE WHEN T.NoWithVirus > 0 THEN CAST(w.NoWithVirusEligible AS
+DECIMAL(20,10))
+                    / CAST(T.NoWithVirus AS DECIMAL(20,10)) ELSE 1.0 END, 1.0) AS
+NoWithVirusWeight
+              ,CASE T.Phase
+                    WHEN 1 THEN CONVERT(DATETIME2, T.AssignmentDate + '01', 112)
+                    WHEN 2 THEN CONVERT(DATETIME2, T.AssignmentDate + '08', 112)
+                    WHEN 3 THEN CONVERT(DATETIME2, T.AssignmentDate + '15', 112)
+                    WHEN 4 THEN CONVERT(DATETIME2, T.AssignmentDate + '22', 112)
+               END AS SamplePhaseBegin
+              ,CASE T.Phase
+                    WHEN 1 THEN CONVERT(DATETIME2, T.AssignmentDate + '08', 112)
+                    WHEN 2 THEN CONVERT(DATETIME2, T.AssignmentDate + '15', 112)
+                    WHEN 3 THEN CONVERT(DATETIME2, T.AssignmentDate + '22', 112)
+                    WHEN 4 THEN DATEADD(MONTH, 1, CONVERT(DATETIME2,
+T.AssignmentDate + '01', 112))
+               END AS SamplePhaseEnd
+    INTO #WeightsTable
+        FROM (
+            SELECT ap.AssignmentDate
+                  ,A.ParentPK
+                  ,CASE WHEN DAY(ap.VisitDate) < 8 THEN 1
+                        WHEN DAY(ap.VisitDate) < 15 THEN 2
+                        WHEN DAY(ap.VisitDate) < 22 THEN 3
+                        ELSE 4 END AS Phase
+                  ,SUM(A.HasWithVirus) AS WithVirus
+                  ,SUM(CASE WHEN A.HasWithVirus = 0 THEN 1 ELSE 0 END) AS NoWithVirus
+            FROM (
+                SELECT ap.TreatmentPK
+                      ,ap.AssociatedLoadID
+                      ,dc.ParentPK
+                      ,MAX(CASE WHEN c.CodeType = 2 THEN 1 ELSE 0 END) AS
+HasWithVirus
+                FROM dbo.Coding c
+                INNER JOIN dbo.Patient ap
+                        ON ap.TreatmentPK = c.TreatmentPK
+                        AND ap.AssociatedLoadID =
+c.AssociatedLoadID
+                        AND ap.AssignmentDate = @PullDate
+                INNER JOIN dbo.RecordsComplete rc
+                        ON rc.TreatmentPK = ap.TreatmentPK
+                        AND rc.AssociatedLoadID =
+ap.AssociatedLoadID
+                INNER JOIN dbo.Locations dc
+                        ON c.TreatmentPK = dc.ReportingPK
+                        AND ((dc.AreaName = @Location AND @IsArea = 1) OR
+(dc.ParentPK = @Location AND @IsArea = 0))
+                    WHERE ap.CauseOfDeath IS NULL
+                    GROUP BY ap.TreatmentPK, ap.AssociatedLoadID,
+dc.ParentPK
+                ) A
+                INNER JOIN dbo.Patient ap
+                    ON ap.AssociatedLoadID =
+A.AssociatedLoadID
+                    AND ap.TreatmentPK = A.TreatmentPK
+        GROUP BY ap.AssignmentDate, A.ParentPK, CASE WHEN DAY(ap.VisitDate)
+< 8 THEN 1
+                                                             WHEN
+DAY(ap.VisitDate) < 15 THEN 2
+                                                             WHEN
+DAY(ap.VisitDate) < 22 THEN 3
+                                                             ELSE 4 END
+
+        ) T
+        LEFT OUTER JOIN dbo.StatisticWeights w
+        ON w.PK = T.ParentPK
+            AND w.PullDate = T.AssignmentDate
+            AND w.SamplePhase = T.Phase
+
+        ;WITH AreaStatistics AS (
+                SELECT ReportingFacilityName
+                      ,ReportingPK
+                          ,CASE WHEN HIVTotal > 0 THEN HIVCorrect * 1.0 /
+HIVTotal * 100.0 ELSE 0.0 END AS HIVAccuracy
+                          ,CASE WHEN WithVirusTotal > 0 THEN WithVirusCorrect * 1.0 /
+WithVirusTotal * 100.0 ELSE 0.0 END AS WithVirusAccuracy
+                          ,CASE WHEN HIWTotal > 0 THEN HIWCorrect * 1.0 /
+HIWTotal * 100.0 ELSE 0.0 END AS HIWAccuracy
+                          ,CAST(HIVCorrect AS INT) AS HIVCorrect
+                          ,CAST(HIVTotal AS INT) AS HIVTotal
+                          ,CAST(WithVirusCorrect AS INT) AS WithVirusCorrect
+                          ,CAST(WithVirusTotal AS INT) AS WithVirusTotal
+                          ,CAST(HIWCorrect AS INT) AS HIWCorrect
+                          ,CAST(HIWTotal AS INT) AS HIWTotal
+                FROM (
+                        SELECT ReportingFacilityName
+                              ,ReportingPK
+                                  ,HIVCodeCorrect AS HIVCorrect
+                                  ,(HIVCodeCorrect + HIVCodeError) AS HIVTotal
+                                  ,WithVirusCodeCorrect AS WithVirusCorrect
+                                  ,(WithVirusCodeCorrect + WithVirusCodeError) AS
+WithVirusTotal
+                                  ,HIWCodeCorrect AS HIWCorrect
+                                  ,(HIWCodeCorrect + HIWCodeError) AS
+HIWTotal
+                        FROM (
+                                SELECT dp.ReportingFacilityName
+                                          ,dp.ReportingPK
+                                          ,SUM(CASE WHEN cc.CodeType = 1 AND
+cc.AppointmentCode = 'C' THEN w.NoWithVirusWeight ELSE 0 END) AS
+HIVCodeCorrect
+                                          ,SUM(CASE WHEN cc.CodeType = 1 AND
+cc.AppointmentCode = 'N' THEN w.NoWithVirusWeight ELSE 0 END) AS HIVCodeError
+                                          ,SUM(CASE WHEN cc.CodeType = 4 AND
+cp.CodeType = 1 AND cc.AppointmentCode = 'C' THEN w.NoWithVirusWeight ELSE 0
+END) AS HIVModCorrect
+                                          ,SUM(CASE WHEN cc.CodeType = 4 AND
+cp.CodeType = 1 AND cc.AppointmentCode = 'N' THEN w.NoWithVirusWeight ELSE 0
+END) AS HIVModError
+                                          ,SUM(CASE WHEN cc.CodeType = 5 AND
+cp.CodeType = 1 AND cc.AppointmentCode = 'C' THEN w.NoWithVirusWeight ELSE 0
+END) AS HIVUoSCorrect
+                                          ,SUM(CASE WHEN cc.CodeType = 5 AND
+cp.CodeType = 1 AND cc.AppointmentCode = 'N' THEN w.NoWithVirusWeight ELSE 0
+END) AS HIVUoSError
+                                          ,SUM(CASE WHEN cc.CodeType = 2 AND
+cc.AppointmentCode = 'C' THEN w.WithVirusWeight ELSE 0 END) AS WithVirusCodeCorrect
+                                          ,SUM(CASE WHEN cc.CodeType = 2 AND
+cc.AppointmentCode = 'N' THEN w.WithVirusWeight ELSE 0 END) AS WithVirusCodeError
+                                          ,SUM(CASE WHEN cc.CodeType = 4 AND
+cp.CodeType = 2 AND cc.AppointmentCode = 'C' THEN w.WithVirusWeight ELSE 0
+END) AS WithVirusModCorrect
+                                          ,SUM(CASE WHEN cc.CodeType = 4 AND
+cp.CodeType = 2 AND cc.AppointmentCode = 'N' THEN w.WithVirusWeight ELSE 0
+END) AS WithVirusModError
+                                          ,SUM(CASE WHEN cc.CodeType = 5 AND
+cp.CodeType = 2 AND cc.AppointmentCode = 'C' THEN w.WithVirusWeight ELSE 0
+END) AS WithVirusUoSCorrect
+                                          ,SUM(CASE WHEN cc.CodeType = 5 AND
+cp.CodeType = 2 AND cc.AppointmentCode = 'N' THEN w.WithVirusWeight ELSE 0
+END) AS WithVirusUoSError
+                                          ,SUM(CASE WHEN cc.CodeType = 3 AND
+cc.AppointmentCode = 'C' THEN w.NoWithVirusWeight ELSE 0 END) AS
+HIWCodeCorrect
+                                          ,SUM(CASE WHEN cc.CodeType = 3 AND
+cc.AppointmentCode = 'N' THEN w.NoWithVirusWeight ELSE 0 END) AS HIWCodeError
+                                FROM dbo.Coding cc
+                                INNER JOIN dbo.AppointmentPatient a
+                                        ON a.TreatmentPK =
+cc.TreatmentPK
+                                        AND a.AssociatedLoadID =
+cc.AssociatedLoadID
+                                        AND a.AssignmentDate = @PullDate
+                                INNER JOIN dbo.RecordsComplete rc
+                                        ON rc.TreatmentPK =
+a.TreatmentPK
+                                        AND rc.AssociatedLoadID =
+a.AssociatedLoadID
+                                LEFT OUTER JOIN dbo.Coding cp
+                                        ON cc.ParentEHRRecordID =
+cp.EHRRecordID
+                                INNER JOIN dbo.Locs dc
+                                        ON cc.TreatmentPK =
+dc.ReportingPK
+                                INNER JOIN dbo.Locs dp
+                                        ON dc.ParentPK = dp.ReportingPK
+                                        AND ((dp.AreaName = @Location AND
+@IsArea = 1) OR (dp.ParentPK = @Location AND @IsArea = 0))
+                                LEFT OUTER JOIN #WeightsTable w
+                        ON w.ParentPK = dc.ParentPK
+                        AND w.AssignmentDate = a.AssignmentDate
+                        AND a.VisitDate >= w.SamplePhaseBegin
+                        AND a.VisitDate < w.SamplePhaseEnd
+                                GROUP BY dp.ReportingFacilityName,
+dp.ReportingPK
+                        ) AreaCodesIndividual
+                ) AreaCodesCombined
+        )
+
+        SELECT ReportingFacilityName
+              ,ReportingPK
+              ,HIVAccuracy
+              ,HIWAccuracy
+              ,WithVirusAccuracy
+              ,HIVCorrect
+              ,HIVTotal
+              ,HIWCorrect
+              ,HIWTotal
+              ,WithVirusCorrect
+              ,WithVirusTotal
+        FROM AreaStatistics
+        ORDER BY ReportingPK
+
+        --test run
+        --exec dbo.usp_rptViralRate 'EArea', '201310', 1
+        --exec dbo.usp_rptViralRate '0001', '201207', 0
+END

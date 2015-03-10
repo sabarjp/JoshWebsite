@@ -47,27 +47,12 @@ $(function() {
                     'lastName',
                     'emailAddress',
                     'phoneNumber',
-                    'address'
+                    'website'
                 ]
             );
 
             errorCount += personValidation.errorCount;
             errorMessages = errorMessages.concat(personValidation.errorMessages);
-
-            if(data.person.hasOwnProperty('address')){
-                var personValidation = validateProperties(data.person.address, 
-                    [
-                        'addressLine1',
-                        'addressLine2',
-                        'city',
-                        'state',
-                        'zipcode'
-                    ]
-                );
-
-                errorCount += personValidation.errorCount;
-                errorMessages = errorMessages.concat(personValidation.errorMessages);
-            }
         }
 
         if(data.hasOwnProperty('synopsis')){
@@ -137,11 +122,7 @@ $(function() {
 
         /* contact section */
         generatedHtml.push(
-            "<aside><p>" + data.person.address.addressLine1 + 
-            " " + data.person.address.addressLine2 + 
-            " - " + data.person.address.city + ", " + 
-            data.person.address.state + " - " +
-            data.person.address.zipcode + 
+            "<aside><p>Portfolio & website: " + data.person.website + 
             "</p><p>" + data.person.emailAddress + " - " +
             data.person.phoneNumber + "</p></aside>"
         );
