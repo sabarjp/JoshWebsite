@@ -125,8 +125,8 @@ $(function() {
         /* did-you-know section */
         generatedHtml.push(
             "<p class='did_you_know'>Did you know this page is " + 
-            "<a href='scripts/resume.js'>generated</a> from " + 
-            "<a href='content/docs/resume.json'>JSON</a>?</p>"
+            "<a href='../scripts/resume.js'>generated</a> from " + 
+            "<a href='../content/docs/resume.json'>JSON</a>?</p>"
         );
 
         /* person section */
