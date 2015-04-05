@@ -1,4 +1,4 @@
-{
+﻿{
     "person": {
         "firstName": "Joshua",
         "lastName": "Powers",
@@ -11,13 +11,8 @@
             "state": "TX",
             "zipcode": ""
         },
-<<<<<<< HEAD:content/docs/resume.json
-        "currentlyEmployed": true,
-        "website": "http://joshpowers.io"
-=======
         "website": "http://joshpowers.io",
         "currentlyEmployed": true
->>>>>>> FETCH_HEAD:site/content/docs/resume.json
     },
 
     "synopsis": {
